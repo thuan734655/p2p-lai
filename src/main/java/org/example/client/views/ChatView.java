@@ -12,6 +12,8 @@ import java.awt.*;
 import java.io.BufferedReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.util.*;
+import java.util.List;
 
 public class ChatView extends JFrame {
     private JList<String> friendList;
@@ -27,6 +29,20 @@ public class ChatView extends JFrame {
 
     private final String myUsername;
 
+    // Lưu trữ hội thoại theo từng người bạn (username -> danh sách tin nhắn)
+    private static class ChatMessage {
+        final String sender;
+        final String text;
+        final boolean isMe;
+        ChatMessage(String sender, String text, boolean isMe) {
+            this.sender = sender;
+            this.text = text;
+            this.isMe = isMe;
+        }
+    }
+
+    private final Map<String, java.util.List<ChatMessage>> conversations = new HashMap<>();
+
     public ChatView(PeerInfo[] peers, Socket socket, BufferedReader in, PrintWriter out, String username, String portNumber) {
         super("Chat App - " + username);
         this.socket = socket;
@@ -41,8 +57,15 @@ public class ChatView extends JFrame {
         friendModel = new DefaultListModel<>();
         for (PeerInfo p : peers) {
             friendModel.addElement(p.getUsername() + " (" + p.getIp() + ":" + p.getPort() + ")");
+            conversations.putIfAbsent(p.getUsername(), new ArrayList<>());
         }
         friendList = new JList<>(friendModel);
+        friendList.addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                String selectedUser = getSelectedUsername();
+                refreshConversation(selectedUser);
+            }
+        });
 
         // khu vực tin nhắn
         chatPane = new JTextPane();
@@ -84,6 +107,7 @@ public class ChatView extends JFrame {
                     newPeer.peer.getPort() + ")";
             if (!friendModel.contains(text)) {
                 friendModel.addElement(text);
+                conversations.putIfAbsent(newPeer.peer.getUsername(), new ArrayList<>());
             }
         });
     }
@@ -92,25 +116,29 @@ public class ChatView extends JFrame {
     public void addMessage(String sender, String msg, boolean isMe) {
         SwingUtilities.invokeLater(() -> {
             try {
-                String styleName = isMe ? "Me" : "Friend_" + sender;
+                if (isMe) {
+                    // Gắn tin nhắn mình gửi vào hội thoại với người đang chọn
+                    String peer = getSelectedUsername();
+                    if (peer == null) return;
+                    conversations.putIfAbsent(peer, new ArrayList<>());
+                    conversations.get(peer).add(new ChatMessage(sender, msg, true));
 
-                if (chatPane.getStyle(styleName) == null) {
-                    Style style = chatPane.addStyle(styleName, null);
+                    // Chỉ hiển thị nếu đang xem đúng người đó
+                    if (peer.equals(getSelectedUsername())) {
+                        appendStyled(sender, msg, true);
+                    }
+                } else {
+                    // Tin nhắn đến: gắn theo người gửi (sender)
+                    String peer = sender;
+                    conversations.putIfAbsent(peer, new ArrayList<>());
+                    conversations.get(peer).add(new ChatMessage(sender, msg, false));
 
-                    if (isMe) {
-                        StyleConstants.setAlignment(style, StyleConstants.ALIGN_RIGHT);
-                        StyleConstants.setForeground(style, Color.BLUE);
-                    } else {
-                        StyleConstants.setAlignment(style, StyleConstants.ALIGN_LEFT);
-                        StyleConstants.setForeground(style, Color.BLACK);
+                    // Nếu đang xem hội thoại của người gửi, hiển thị ngay
+                    String current = getSelectedUsername();
+                    if (peer.equals(current)) {
+                        appendStyled(sender, msg, false);
                     }
                 }
-
-                Style style = chatPane.getStyle(styleName);
-
-                doc.insertString(doc.getLength(), sender + ": " + msg + "\n", style);
-                doc.setParagraphAttributes(doc.getLength(), 1, style, false);
-
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -133,6 +161,9 @@ public class ChatView extends JFrame {
         String ip = ipPort[0];
         int port = Integer.parseInt(ipPort[1]);
 
+        // Lấy username của người nhận để gắn hội thoại
+        String peerUsername = parts[0].trim();
+
         try {
             Socket peerSocket = new Socket(ip, port);
             PrintWriter pw = new PrintWriter(peerSocket.getOutputStream(), true);
@@ -140,8 +171,12 @@ public class ChatView extends JFrame {
             // gửi kèm cả username + nội dung tin nhắn
             pw.println(myUsername + "|" + text);
 
-            // hiển thị tin nhắn của mình
-            addMessage(myUsername, text, true);
+            // Lưu và hiển thị tin nhắn của mình trong hội thoại với peer đang chọn
+            conversations.putIfAbsent(peerUsername, new ArrayList<>());
+            conversations.get(peerUsername).add(new ChatMessage(myUsername, text, true));
+            if (peerUsername.equals(getSelectedUsername())) {
+                appendStyled(myUsername, text, true);
+            }
 
             peerSocket.close();
         } catch (Exception ex) {
@@ -150,5 +185,76 @@ public class ChatView extends JFrame {
         }
 
         inputField.setText("");
+    }
+
+    // Lấy username từ item đang chọn trong danh sách bạn bè
+    private String getSelectedUsername() {
+        String selected = friendList.getSelectedValue();
+        if (selected == null) return null;
+        int idx = selected.indexOf(" (");
+        if (idx <= 0) return selected.trim();
+        return selected.substring(0, idx).trim();
+    }
+
+    // Làm mới hiển thị hội thoại theo người được chọn
+    private void refreshConversation(String username) {
+        try {
+            chatPane.setText("");
+            doc = new DefaultStyledDocument();
+            chatPane.setDocument(doc);
+            if (username == null) return;
+            List<ChatMessage> msgs = conversations.getOrDefault(username, Collections.emptyList());
+            for (ChatMessage m : msgs) {
+                appendStyled(m.sender, m.text, m.isMe);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // Helper chèn tin nhắn với style trái/phải (căn đoạn đúng vùng vừa chèn)
+    private void appendStyled(String sender, String msg, boolean isMe) throws BadLocationException {
+        String styleName = isMe ? "Me" : "Friend_" + sender;
+
+        // Tạo style nếu chưa có
+        if (chatPane.getStyle(styleName) == null) {
+            Style style = chatPane.addStyle(styleName, null);
+            // màu chữ
+            if (isMe) {
+                StyleConstants.setForeground(style, new Color(25, 118, 210)); // xanh dương
+            } else {
+                StyleConstants.setForeground(style, new Color(33, 33, 33)); // đen đậm
+            }
+            // căn lề đoạn
+            StyleConstants.setLeftIndent(style, isMe ? 60f : 10f);
+            StyleConstants.setRightIndent(style, isMe ? 10f : 60f);
+            StyleConstants.setFirstLineIndent(style, 0f);
+            StyleConstants.setSpaceAbove(style, 4f);
+            StyleConstants.setSpaceBelow(style, 4f);
+        }
+
+        Style style = chatPane.getStyle(styleName);
+
+        // Xác định vị trí bắt đầu trước khi chèn
+        int start = doc.getLength();
+        String line = sender + ": " + msg + "\n";
+        doc.insertString(start, line, null); // chèn text trước
+
+        // Căn đoạn cho vùng vừa chèn
+        int end = doc.getLength();
+        Element root = doc.getDefaultRootElement();
+        int startPara = root.getElementIndex(start);
+        int endPara = root.getElementIndex(end);
+
+        // Đặt alignment theo từng đoạn trong vùng [start, end)
+        for (int i = startPara; i <= endPara; i++) {
+            Element paragraph = root.getElement(i);
+            int pStart = paragraph.getStartOffset();
+            int pEnd = paragraph.getEndOffset();
+
+            SimpleAttributeSet attrs = new SimpleAttributeSet(style);
+            StyleConstants.setAlignment(attrs, isMe ? StyleConstants.ALIGN_RIGHT : StyleConstants.ALIGN_LEFT);
+            doc.setParagraphAttributes(pStart, pEnd - pStart, attrs, false);
+        }
     }
 }
