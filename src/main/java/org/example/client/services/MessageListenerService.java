@@ -23,18 +23,24 @@ public class MessageListenerService implements Runnable {
             while ((line = in.readLine()) != null) {
                 System.out.println("Received from server: " + line);
 
-                AddNewPeer newPeer = gson.fromJson(line, AddNewPeer.class);
-                if (newPeer != null && "addNewPeer".equalsIgnoreCase(newPeer.getMessage())) {
-                    chatView.updatePeerList(newPeer);
-                } else {
-                    if (line.contains("|")) {
-                        String[] parts = line.split("\\|", 2);
-                        String sender = parts[0];
-                        String msg = parts.length > 1 ? parts[1] : "";
-                        chatView.addMessage(sender, msg, false);
-                    } else {
-                        chatView.addMessage("Server", line, false);
+                // server gửi update danh sách peer
+                AddNewPeer event = gson.fromJson(line, AddNewPeer.class);
+                if (event != null && event.getMessage() != null) {
+                    if ("addNewPeer".equalsIgnoreCase(event.getMessage())) {
+                        chatView.updatePeerList(event);
+                        continue;
                     }
+                    // Bỏ qua removePeer từ server theo yêu cầu
+                }
+
+                // nếu server broadcast tin nhắn (trường hợp sau này), giả định format: sender|msg
+                if (line.contains("|")) {
+                    String[] parts = line.split("\\|", 2);
+                    String sender = parts[0];
+                    String msg = parts.length > 1 ? parts[1] : "";
+                    chatView.addMessage(sender, msg, false);
+                } else {
+                    chatView.addMessage("Server", line, false);
                 }
             }
         } catch (Exception e) {
