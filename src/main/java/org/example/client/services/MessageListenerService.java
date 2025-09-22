@@ -23,12 +23,10 @@ public class MessageListenerService implements Runnable {
             while ((line = in.readLine()) != null) {
                 System.out.println("Received from server: " + line);
 
-                // server gửi update danh sách peer
                 AddNewPeer newPeer = gson.fromJson(line, AddNewPeer.class);
                 if (newPeer != null && "addNewPeer".equalsIgnoreCase(newPeer.getMessage())) {
                     chatView.updatePeerList(newPeer);
                 } else {
-                    // nếu server broadcast tin nhắn (trường hợp sau này), giả định format: sender|msg
                     if (line.contains("|")) {
                         String[] parts = line.split("\\|", 2);
                         String sender = parts[0];

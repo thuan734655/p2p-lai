@@ -18,7 +18,7 @@ import java.util.List;
 public class ChatView extends JFrame {
     private JList<String> friendList;
     private DefaultListModel<String> friendModel;
-    private JTextPane chatPane;      // thay JTextArea bằng JTextPane
+    private JTextPane chatPane;
     private StyledDocument doc;
     private JTextField inputField;
 
@@ -29,7 +29,6 @@ public class ChatView extends JFrame {
 
     private final String myUsername;
 
-    // Lưu trữ hội thoại theo từng người bạn (username -> danh sách tin nhắn)
     private static class ChatMessage {
         final String sender;
         final String text;
@@ -53,10 +52,8 @@ public class ChatView extends JFrame {
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setSize(800, 600);
 
-        // danh sách bạn bè online
         friendModel = new DefaultListModel<>();
         for (PeerInfo p : peers) {
-            // Bỏ qua chính mình trong danh sách bạn bè
             if (p.getUsername() != null && p.getUsername().equals(myUsername)) {
                 continue;
             }
@@ -71,12 +68,10 @@ public class ChatView extends JFrame {
             }
         });
 
-        // khu vực tin nhắn
         chatPane = new JTextPane();
         chatPane.setEditable(false);
         doc = chatPane.getStyledDocument();
 
-        // input nhắn tin
         inputField = new JTextField();
         JButton sendBtn = new JButton("Send");
 
@@ -84,29 +79,24 @@ public class ChatView extends JFrame {
         bottomPanel.add(inputField, BorderLayout.CENTER);
         bottomPanel.add(sendBtn, BorderLayout.EAST);
 
-        // layout
         setLayout(new BorderLayout());
         add(new JScrollPane(friendList), BorderLayout.WEST);
         add(new JScrollPane(chatPane), BorderLayout.CENTER);
         add(bottomPanel, BorderLayout.SOUTH);
 
         sendBtn.addActionListener(e -> sendMessage());
-        inputField.addActionListener(e -> sendMessage()); // enter cũng gửi
+        inputField.addActionListener(e -> sendMessage());
 
-        // 🚀 Khởi động PeerServerService để nhận tin P2P
         int myPort = Integer.parseInt(portNumber);
         new Thread(new PeerServerService(myPort, this)).start();
 
-        // chạy listener riêng để nghe server trung tâm
         new Thread(new MessageListenerService(in, this)).start();
 
         setVisible(true);
     }
 
-    // cập nhật danh sách bạn bè online
     public void updatePeerList(AddNewPeer newPeer) {
         SwingUtilities.invokeLater(() -> {
-            // Không thêm bản thân vào danh sách bạn bè
             if (newPeer.peer.getUsername() != null && newPeer.peer.getUsername().equals(myUsername)) {
                 return;
             }
@@ -120,28 +110,23 @@ public class ChatView extends JFrame {
         });
     }
 
-    // thêm tin nhắn với style căn trái/phải
     public void addMessage(String sender, String msg, boolean isMe) {
         SwingUtilities.invokeLater(() -> {
             try {
                 if (isMe) {
-                    // Gắn tin nhắn mình gửi vào hội thoại với người đang chọn
                     String peer = getSelectedUsername();
                     if (peer == null) return;
                     conversations.putIfAbsent(peer, new ArrayList<>());
                     conversations.get(peer).add(new ChatMessage(sender, msg, true));
 
-                    // Chỉ hiển thị nếu đang xem đúng người đó
                     if (peer.equals(getSelectedUsername())) {
                         appendStyled(sender, msg, true);
                     }
                 } else {
-                    // Tin nhắn đến: gắn theo người gửi (sender)
                     String peer = sender;
                     conversations.putIfAbsent(peer, new ArrayList<>());
                     conversations.get(peer).add(new ChatMessage(sender, msg, false));
 
-                    // Nếu đang xem hội thoại của người gửi, hiển thị ngay
                     String current = getSelectedUsername();
                     if (peer.equals(current)) {
                         appendStyled(sender, msg, false);
@@ -169,17 +154,14 @@ public class ChatView extends JFrame {
         String ip = ipPort[0];
         int port = Integer.parseInt(ipPort[1]);
 
-        // Lấy username của người nhận để gắn hội thoại
         String peerUsername = parts[0].trim();
 
         try {
             Socket peerSocket = new Socket(ip, port);
             PrintWriter pw = new PrintWriter(peerSocket.getOutputStream(), true);
 
-            // gửi kèm cả username + nội dung tin nhắn
             pw.println(myUsername + "|" + text);
 
-            // Lưu và hiển thị tin nhắn của mình trong hội thoại với peer đang chọn
             conversations.putIfAbsent(peerUsername, new ArrayList<>());
             conversations.get(peerUsername).add(new ChatMessage(myUsername, text, true));
             if (peerUsername.equals(getSelectedUsername())) {
@@ -195,7 +177,6 @@ public class ChatView extends JFrame {
         inputField.setText("");
     }
 
-    // Lấy username từ item đang chọn trong danh sách bạn bè
     private String getSelectedUsername() {
         String selected = friendList.getSelectedValue();
         if (selected == null) return null;
@@ -204,7 +185,6 @@ public class ChatView extends JFrame {
         return selected.substring(0, idx).trim();
     }
 
-    // Làm mới hiển thị hội thoại theo người được chọn
     private void refreshConversation(String username) {
         try {
             chatPane.setText("");
@@ -220,20 +200,16 @@ public class ChatView extends JFrame {
         }
     }
 
-    // Helper chèn tin nhắn với style trái/phải (căn đoạn đúng vùng vừa chèn)
     private void appendStyled(String sender, String msg, boolean isMe) throws BadLocationException {
         String styleName = isMe ? "Me" : "Friend_" + sender;
 
-        // Tạo style nếu chưa có
         if (chatPane.getStyle(styleName) == null) {
             Style style = chatPane.addStyle(styleName, null);
-            // màu chữ
             if (isMe) {
                 StyleConstants.setForeground(style, new Color(25, 118, 210)); // xanh dương
             } else {
                 StyleConstants.setForeground(style, new Color(33, 33, 33)); // đen đậm
             }
-            // căn lề đoạn
             StyleConstants.setLeftIndent(style, isMe ? 60f : 10f);
             StyleConstants.setRightIndent(style, isMe ? 10f : 60f);
             StyleConstants.setFirstLineIndent(style, 0f);
@@ -243,18 +219,15 @@ public class ChatView extends JFrame {
 
         Style style = chatPane.getStyle(styleName);
 
-        // Xác định vị trí bắt đầu trước khi chèn
         int start = doc.getLength();
         String line = sender + ": " + msg + "\n";
-        doc.insertString(start, line, null); // chèn text trước
+        doc.insertString(start, line, null);
 
-        // Căn đoạn cho vùng vừa chèn
         int end = doc.getLength();
         Element root = doc.getDefaultRootElement();
         int startPara = root.getElementIndex(start);
         int endPara = root.getElementIndex(end);
 
-        // Đặt alignment theo từng đoạn trong vùng [start, end)
         for (int i = startPara; i <= endPara; i++) {
             Element paragraph = root.getElement(i);
             int pStart = paragraph.getStartOffset();

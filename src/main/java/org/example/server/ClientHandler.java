@@ -16,7 +16,7 @@ public class ClientHandler implements Runnable {
 
     private final Socket socket;
     private final Set<ClientSession> sessions;
-    private ClientSession mySession; // giữ thông tin session của client hiện tại
+    private ClientSession mySession;
     private static final String MESSAGE = "addNewPeer";
 
     public ClientHandler(Socket socket, Set<ClientSession> sessions) {
@@ -46,10 +46,8 @@ public class ClientHandler implements Runnable {
                     mySession = new ClientSession(socket, peerInfo);
                     sessions.add(mySession);
 
-                    // Gửi toàn bộ danh sách peer cho client vừa login
                     out.println(gson.toJson(getAllPeers()));
 
-                    // Thông báo cho mọi người có peer mới
                     broadcastPeerList(peerInfo);
                 }
                 else if ("LOGOUT".equalsIgnoreCase(command) && mySession != null) {

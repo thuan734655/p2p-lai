@@ -15,7 +15,6 @@ public class PeerChatService {
         this.chatView = chatView;
     }
 
-    // chạy server socket để lắng nghe tin nhắn từ peer
     public void startListener() {
         new Thread(() -> {
             try (ServerSocket serverSocket = new ServerSocket(listenPort)) {
@@ -34,7 +33,6 @@ public class PeerChatService {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(peerSocket.getInputStream()))) {
             String line = reader.readLine();
             if (line != null) {
-                // format: sender|msg
                 String[] parts = line.split("\\|", 2);
                 String sender = parts[0];
                 String msg = parts.length > 1 ? parts[1] : "";
@@ -47,15 +45,12 @@ public class PeerChatService {
         }
     }
 
-    // gửi tin nhắn đến 1 peer
     public static void sendMessage(String myUsername, String peerIp, int peerPort, String message, ChatView chatView) {
         try (Socket socket = new Socket(peerIp, peerPort);
              PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
 
-            // gửi kèm username
             out.println(myUsername + "|" + message);
 
-            // hiển thị luôn tin nhắn mình vừa gửi
             chatView.addMessage(myUsername, message, true);
 
         } catch (IOException e) {

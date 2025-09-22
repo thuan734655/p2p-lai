@@ -35,7 +35,6 @@ public class PeerServerService implements Runnable {
         ) {
             String line = in.readLine();
             if (line != null) {
-                // format: "username|message"
                 String[] parts = line.split("\\|", 2);
                 String sender = parts[0];
                 String msg = parts.length > 1 ? parts[1] : "";
