@@ -56,6 +56,10 @@ public class ChatView extends JFrame {
         // danh sách bạn bè online
         friendModel = new DefaultListModel<>();
         for (PeerInfo p : peers) {
+            // Bỏ qua chính mình trong danh sách bạn bè
+            if (p.getUsername() != null && p.getUsername().equals(myUsername)) {
+                continue;
+            }
             friendModel.addElement(p.getUsername() + " (" + p.getIp() + ":" + p.getPort() + ")");
             conversations.putIfAbsent(p.getUsername(), new ArrayList<>());
         }
@@ -102,6 +106,10 @@ public class ChatView extends JFrame {
     // cập nhật danh sách bạn bè online
     public void updatePeerList(AddNewPeer newPeer) {
         SwingUtilities.invokeLater(() -> {
+            // Không thêm bản thân vào danh sách bạn bè
+            if (newPeer.peer.getUsername() != null && newPeer.peer.getUsername().equals(myUsername)) {
+                return;
+            }
             String text = newPeer.peer.getUsername() + " (" +
                     newPeer.peer.getIp() + ":" +
                     newPeer.peer.getPort() + ")";
