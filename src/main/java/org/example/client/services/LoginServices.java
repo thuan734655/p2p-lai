@@ -16,7 +16,6 @@ public class LoginServices {
         try {
             Gson gson = new Gson();
 
-            // Tự động chọn một cổng P2P đang rảnh trên máy local
             int dynamicPort;
             try (ServerSocket ss = new ServerSocket(0)) {
                 dynamicPort = ss.getLocalPort();
