@@ -29,6 +29,8 @@ public class MessageListenerService implements Runnable {
                         chatView.updatePeerList(event);
                         continue;
                     }
+                    // Bỏ qua mọi JSON control message khác (vd: removePeer) và KHÔNG in ra chat
+                    continue;
                 }
 
                 if (line.contains("|")) {
@@ -37,7 +39,10 @@ public class MessageListenerService implements Runnable {
                     String msg = parts.length > 1 ? parts[1] : "";
                     chatView.addMessage(sender, msg, false);
                 } else {
-                    chatView.addMessage("Server", line, false);
+                    // Bỏ qua các dòng từ server không theo định dạng sender|msg để tránh in JSON
+                    if (!line.trim().startsWith("{")) {
+                        chatView.addMessage("Server", line, false);
+                    }
                 }
             }
         } catch (Exception e) {

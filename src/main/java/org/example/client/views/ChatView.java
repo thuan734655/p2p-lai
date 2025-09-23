@@ -42,7 +42,8 @@ public class ChatView extends JFrame {
         }
     }
 
-    private final Map<String, java.util.List<ChatMessage>> conversations = new HashMap<>();
+    private final java.util.List<ChatMessage> timeline = new ArrayList<>();
+    private final Map<String, PeerInfo> peersMap = new HashMap<>();
 
     public ChatView(PeerInfo[] peers, Socket socket, BufferedReader in, PrintWriter out, String username, String portNumber) {
         super("Chat App - " + username);
@@ -59,15 +60,14 @@ public class ChatView extends JFrame {
             if (p.getUsername() != null && p.getUsername().equals(myUsername)) {
                 continue;
             }
-            friendModel.addElement(p.getUsername() + " (" + p.getIp() + ":" + p.getPort() + ")");
-            conversations.putIfAbsent(p.getUsername(), new ArrayList<>());
+            friendModel.addElement(p.getUsername());
+            peersMap.put(p.getUsername(), p);
         }
         friendList = new JList<>(friendModel);
         friendList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         friendList.addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
-                String selectedUser = getSelectedUsername();
-                refreshConversation(selectedUser);
+                refreshConversation(null);
             }
         });
 
@@ -110,65 +110,31 @@ public class ChatView extends JFrame {
             if (newPeer.peer.getUsername() != null && newPeer.peer.getUsername().equals(myUsername)) {
                 return;
             }
-            String text = newPeer.peer.getUsername() + " (" +
-                    newPeer.peer.getIp() + ":" +
-                    newPeer.peer.getPort() + ")";
-            if (!friendModel.contains(text)) {
-                friendModel.addElement(text);
-                conversations.putIfAbsent(newPeer.peer.getUsername(), new ArrayList<>());
+            String username = newPeer.peer.getUsername();
+            if (!friendModel.contains(username)) {
+                friendModel.addElement(username);
             }
+            peersMap.put(username, newPeer.peer);
         });
     }
 
     public void removePeer(String username) {
         SwingUtilities.invokeLater(() -> {
-            int indexToRemove = -1;
-            for (int i = 0; i < friendModel.size(); i++) {
-                String item = friendModel.getElementAt(i);
-                if (item.startsWith(username + " (")) {
-                    indexToRemove = i;
-                    break;
-                }
-            }
-            if (indexToRemove >= 0) {
-                friendModel.remove(indexToRemove);
-            }
-
-            conversations.remove(username);
-
-            String current = getSelectedUsername();
-            if (username.equals(current)) {
-                chatPane.setText("");
-            }
-
-            try {
-                appendStyled("System", username + " đã offline.", false);
-            } catch (BadLocationException ignored) {}
+            friendModel.removeElement(username);
+            peersMap.remove(username);
+            addSystemNotice(username + " đã offline.");
         });
     }
 
     public void addMessage(String sender, String msg, boolean isMe) {
+        addMessage(sender, myUsername, msg, isMe);
+    }
+
+    public void addMessage(String sender, String receiver, String msg, boolean isMe) {
         SwingUtilities.invokeLater(() -> {
             try {
-                if (isMe) {
-                    String peer = getSelectedUsername();
-                    if (peer == null) return;
-                    conversations.putIfAbsent(peer, new ArrayList<>());
-                    conversations.get(peer).add(new ChatMessage(sender, msg, true));
-
-                    if (peer.equals(getSelectedUsername())) {
-                        appendStyled(sender, msg, true);
-                    }
-                } else {
-                    String peer = sender;
-                    conversations.putIfAbsent(peer, new ArrayList<>());
-                    conversations.get(peer).add(new ChatMessage(sender, msg, false));
-
-                    String current = getSelectedUsername();
-                    if (peer.equals(current)) {
-                        appendStyled(sender, msg, false);
-                    }
-                }
+                timeline.add(new ChatMessage(sender + " -> " + receiver, msg, isMe));
+                appendStyled(sender + " -> " + receiver, msg, isMe);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -185,31 +151,18 @@ public class ChatView extends JFrame {
             return;
         }
 
-        String currentView = getSelectedUsername();
-
         for (String selected : selectedItems) {
-            String[] parts = selected.split("\\(");
-            if (parts.length < 2) continue;
-            String addr = parts[1].replace(")", ""); // ip:port
-            String[] ipPort = addr.split(":");
-            if (ipPort.length < 2) continue;
-            String ip = ipPort[0];
-            int port = Integer.parseInt(ipPort[1]);
-
-            String peerUsername = parts[0].trim();
+            String peerUsername = selected.trim();
+            PeerInfo pi = peersMap.get(peerUsername);
+            if (pi == null) continue;
+            String ip = pi.getIp();
+            int port = Integer.parseInt(pi.getPort());
 
             try {
                 Socket peerSocket = new Socket(ip, port);
                 PrintWriter pw = new PrintWriter(peerSocket.getOutputStream(), true);
-
                 pw.println(myUsername + "|" + text);
-
-                conversations.putIfAbsent(peerUsername, new ArrayList<>());
-                conversations.get(peerUsername).add(new ChatMessage(myUsername, text, true));
-                if (peerUsername.equals(currentView)) {
-                    appendStyled(myUsername, text, true);
-                }
-
+                addMessage(myUsername, peerUsername, text, true);
                 peerSocket.close();
             } catch (Exception ex) {
                 ex.printStackTrace();
@@ -222,9 +175,7 @@ public class ChatView extends JFrame {
     private String getSelectedUsername() {
         String selected = friendList.getSelectedValue();
         if (selected == null) return null;
-        int idx = selected.indexOf(" (");
-        if (idx <= 0) return selected.trim();
-        return selected.substring(0, idx).trim();
+        return selected.trim();
     }
 
     private void refreshConversation(String username) {
@@ -232,9 +183,7 @@ public class ChatView extends JFrame {
             chatPane.setText("");
             doc = new DefaultStyledDocument();
             chatPane.setDocument(doc);
-            if (username == null) return;
-            List<ChatMessage> msgs = conversations.getOrDefault(username, Collections.emptyList());
-            for (ChatMessage m : msgs) {
+            for (ChatMessage m : timeline) {
                 appendStyled(m.sender, m.text, m.isMe);
             }
         } catch (Exception e) {
@@ -248,9 +197,9 @@ public class ChatView extends JFrame {
         if (chatPane.getStyle(styleName) == null) {
             Style style = chatPane.addStyle(styleName, null);
             if (isMe) {
-                StyleConstants.setForeground(style, new Color(25, 118, 210)); // xanh dương
+                StyleConstants.setForeground(style, new Color(25, 118, 210));
             } else {
-                StyleConstants.setForeground(style, new Color(33, 33, 33)); // đen đậm
+                StyleConstants.setForeground(style, new Color(33, 33, 33));
             }
             StyleConstants.setLeftIndent(style, isMe ? 60f : 10f);
             StyleConstants.setRightIndent(style, isMe ? 10f : 60f);
@@ -281,20 +230,54 @@ public class ChatView extends JFrame {
         }
     }
 
+    private void addSystemNotice(String text) {
+        SwingUtilities.invokeLater(() -> {
+            try {
+                String styleName = "SystemNotice";
+                if (chatPane.getStyle(styleName) == null) {
+                    Style style = chatPane.addStyle(styleName, null);
+                    StyleConstants.setForeground(style, new Color(120, 120, 120));
+                    StyleConstants.setItalic(style, true);
+                    StyleConstants.setLeftIndent(style, 10f);
+                    StyleConstants.setRightIndent(style, 10f);
+                    StyleConstants.setSpaceAbove(style, 4f);
+                    StyleConstants.setSpaceBelow(style, 4f);
+                }
+
+                Style style = chatPane.getStyle(styleName);
+                int start = doc.getLength();
+                String line = text + "\n";
+                doc.insertString(start, line, style);
+
+                int end = doc.getLength();
+                Element root = doc.getDefaultRootElement();
+                int startPara = root.getElementIndex(start);
+                int endPara = root.getElementIndex(end);
+                for (int i = startPara; i <= endPara; i++) {
+                    Element paragraph = root.getElement(i);
+                    int pStart = paragraph.getStartOffset();
+                    int pEnd = paragraph.getEndOffset();
+                    SimpleAttributeSet attrs = new SimpleAttributeSet(style);
+                    StyleConstants.setAlignment(attrs, StyleConstants.ALIGN_LEFT);
+                    doc.setParagraphAttributes(pStart, pEnd - pStart, attrs, false);
+                }
+            } catch (BadLocationException e) {
+                e.printStackTrace();
+            }
+        });
+    }
+
     private void broadcastPresenceLogout() {
         java.util.List<String> items = new ArrayList<>();
         for (int i = 0; i < friendModel.size(); i++) {
             items.add(friendModel.getElementAt(i));
         }
-        for (String item : items) {
+        for (String username : items) {
             try {
-                String[] parts = item.split("\\(");
-                if (parts.length < 2) continue;
-                String addr = parts[1].replace(")", "");
-                String[] ipPort = addr.split(":");
-                if (ipPort.length < 2) continue;
-                String ip = ipPort[0];
-                int port = Integer.parseInt(ipPort[1]);
+                PeerInfo pi = peersMap.get(username);
+                if (pi == null) continue;
+                String ip = pi.getIp();
+                int port = Integer.parseInt(pi.getPort());
 
                 try (Socket s = new Socket(ip, port); PrintWriter pw = new PrintWriter(s.getOutputStream(), true)) {
                     pw.println("PRESENCE LOGOUT " + myUsername);
