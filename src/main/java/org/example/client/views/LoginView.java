@@ -7,24 +7,20 @@ import javax.swing.*;
 public class LoginView extends JFrame {
     public LoginView () {
         super("Login");
-        setSize(300, 200);
+        setSize(300, 160);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
 
         SpringLayout layout = new SpringLayout();
         setLayout(layout);
 
         JLabel usernameLabel = new JLabel("Username:");
-        JLabel portNumberLabel = new JLabel("Port:");
 
         JTextField usernameTextField = new JTextField(15);
-        JTextField portNumberTextField = new JTextField(15);
 
         JButton loginButton = new JButton("Login");
 
         add(usernameLabel);
         add(usernameTextField);
-        add(portNumberLabel);
-        add(portNumberTextField);
         add(loginButton);
 
         layout.putConstraint(SpringLayout.WEST, usernameLabel, 20, SpringLayout.WEST, this.getContentPane());
@@ -34,26 +30,21 @@ public class LoginView extends JFrame {
         layout.putConstraint(SpringLayout.WEST, usernameTextField, 100, SpringLayout.WEST, this.getContentPane());
         layout.putConstraint(SpringLayout.NORTH, usernameTextField, 30, SpringLayout.NORTH, this.getContentPane());
 
-        // Port Label
-        layout.putConstraint(SpringLayout.WEST, portNumberLabel, 20, SpringLayout.WEST, this.getContentPane());
-        layout.putConstraint(SpringLayout.NORTH, portNumberLabel, 20, SpringLayout.SOUTH, usernameLabel);
-
-        // Port TextField
-        layout.putConstraint(SpringLayout.WEST, portNumberTextField, 100, SpringLayout.WEST, this.getContentPane());
-        layout.putConstraint(SpringLayout.NORTH, portNumberTextField, 20, SpringLayout.SOUTH, usernameTextField);
-
         // Login Button
         layout.putConstraint(SpringLayout.HORIZONTAL_CENTER, loginButton, 0, SpringLayout.HORIZONTAL_CENTER, this.getContentPane());
-        layout.putConstraint(SpringLayout.NORTH, loginButton, 30, SpringLayout.SOUTH, portNumberTextField);
+        layout.putConstraint(SpringLayout.NORTH, loginButton, 30, SpringLayout.SOUTH, usernameTextField);
 
         setLocationRelativeTo(null);
         setVisible(true);
 
         loginButton.addActionListener(e -> {
-           String isLogin = LoginServices.Login(usernameTextField.getText(), portNumberTextField.getText());
+           String isLogin = LoginServices.Login(usernameTextField.getText());
            if (isLogin != "") {
                setVisible(false);
            }
         });
+    }
+    public static void main(String[] args) {
+        new LoginView();
     }
 }

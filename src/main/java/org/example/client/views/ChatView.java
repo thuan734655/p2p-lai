@@ -63,7 +63,6 @@ public class ChatView extends JFrame {
             conversations.putIfAbsent(p.getUsername(), new ArrayList<>());
         }
         friendList = new JList<>(friendModel);
-        // Cho phép chọn nhiều người để gửi tin nhắn nhóm
         friendList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         friendList.addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
@@ -96,7 +95,6 @@ public class ChatView extends JFrame {
 
         new Thread(new MessageListenerService(in, this)).start();
 
-        // Khi đóng cửa sổ: broadcast PRESENCE LOGOUT cho các peer để họ tự cập nhật
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
@@ -122,10 +120,8 @@ public class ChatView extends JFrame {
         });
     }
 
-    // Gỡ người dùng khỏi danh sách khi họ offline/LOGOUT
     public void removePeer(String username) {
         SwingUtilities.invokeLater(() -> {
-            // Tìm item theo tiền tố "username ("
             int indexToRemove = -1;
             for (int i = 0; i < friendModel.size(); i++) {
                 String item = friendModel.getElementAt(i);
@@ -138,16 +134,13 @@ public class ChatView extends JFrame {
                 friendModel.remove(indexToRemove);
             }
 
-            // Xóa hội thoại lưu trữ (tuỳ chọn)
             conversations.remove(username);
 
-            // Nếu đang xem hội thoại của người đó, làm trống khung chat
             String current = getSelectedUsername();
             if (username.equals(current)) {
                 chatPane.setText("");
             }
 
-            // Thông báo nhẹ trong UI (tuỳ chọn):
             try {
                 appendStyled("System", username + " đã offline.", false);
             } catch (BadLocationException ignored) {}
@@ -192,7 +185,6 @@ public class ChatView extends JFrame {
             return;
         }
 
-        // Người đang xem (để quyết định hiển thị ngay)
         String currentView = getSelectedUsername();
 
         for (String selected : selectedItems) {
@@ -204,17 +196,14 @@ public class ChatView extends JFrame {
             String ip = ipPort[0];
             int port = Integer.parseInt(ipPort[1]);
 
-            // Lấy username của người nhận để gắn hội thoại
             String peerUsername = parts[0].trim();
 
             try {
                 Socket peerSocket = new Socket(ip, port);
                 PrintWriter pw = new PrintWriter(peerSocket.getOutputStream(), true);
 
-                // gửi kèm cả username + nội dung tin nhắn
                 pw.println(myUsername + "|" + text);
 
-                // Lưu tin nhắn vào hội thoại với peer này
                 conversations.putIfAbsent(peerUsername, new ArrayList<>());
                 conversations.get(peerUsername).add(new ChatMessage(myUsername, text, true));
                 if (peerUsername.equals(currentView)) {
@@ -224,7 +213,6 @@ public class ChatView extends JFrame {
                 peerSocket.close();
             } catch (Exception ex) {
                 ex.printStackTrace();
-                // tiếp tục gửi cho người khác nếu một người lỗi
             }
         }
 
@@ -293,7 +281,6 @@ public class ChatView extends JFrame {
         }
     }
 
-    // Gửi broadcast PRESENCE LOGOUT đến tất cả peers hiện trong danh sách
     private void broadcastPresenceLogout() {
         java.util.List<String> items = new ArrayList<>();
         for (int i = 0; i < friendModel.size(); i++) {
@@ -313,7 +300,6 @@ public class ChatView extends JFrame {
                     pw.println("PRESENCE LOGOUT " + myUsername);
                 }
             } catch (Exception ignored) {
-                // Nếu peer đã offline, bỏ qua lỗi
             }
         }
     }

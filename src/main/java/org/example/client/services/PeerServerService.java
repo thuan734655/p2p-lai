@@ -35,7 +35,6 @@ public class PeerServerService implements Runnable {
         ) {
             String line = in.readLine();
             if (line != null) {
-                // Xử lý thông điệp hiện diện từ peer: PRESENCE LOGOUT <username>
                 if (line.startsWith("PRESENCE LOGOUT ")) {
                     String username = line.substring("PRESENCE LOGOUT ".length()).trim();
                     if (!username.isEmpty()) {
@@ -43,7 +42,6 @@ public class PeerServerService implements Runnable {
                     }
                     return;
                 }
-                // format: "username|message"
                 String[] parts = line.split("\\|", 2);
                 String sender = parts[0];
                 String msg = parts.length > 1 ? parts[1] : "";
